@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>暹罗猫的小冒险</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ui-top">
+    <div id="title">暹罗猫的小冒险</div>
+    <div id="controls">按键：W 跳 · A 左 · D 右 · Shift 冲刺 · M 静音 · R 重置</div>
+  </div>
+
+  <canvas id="game" width="1024" height="480"></canvas>
+
+  <div id="dialog" class="hidden">
+    <div id="dialog-text"></div>
+    <div id="dialog-choices" class="choices"></div>
+  </div>
+
+  <div id="hud-time" class="hud">剩余时间：<span id="time-remaining">120</span>s</div>
+  <div id="result" class="hidden"></div>
+
+  <!-- 可选背景音乐（放在 assets/ 下） -->
+  <audio id="bg-music" loop>
+    <source src="assets/bg-music.mp3" type="audio/mpeg">
+  </audio>
+
+  <script src="game.js"></script>
+</body>
+</html>
