@@ -11,7 +11,7 @@
 
   // SETTINGS
   const POWER_DURATION_MS = 5000; // 道具效果 5 秒
-  const GAME_TIME_SECONDS = 120;  // 游戏总时长 120 秒
+  const GAME_TIME_SECONDS = 90;  // 1.5 minutes
 
   // basic physics
   const H = canvas.height;
@@ -28,7 +28,7 @@
   const dashCooldown = 0.8;
 
   // world
-  const world = { width: 2400, height: H };
+  const world = { width: 4800, height: H }; // double the level length
   let cameraX = 0;
 
   // player
@@ -44,6 +44,49 @@
     dashTimeLeft: 0,
     dashCooldownLeft: 0
   };
+
+  // --- NEW: monsters (special obstacles) ---
+  let monsters = [
+    { x: 900, y: groundY - 48, w: 48, h: 48, dir: 1, min: 900, max: 1040 },
+    { x: 1500, y: groundY - 48, w: 48, h: 48, dir: 1, min: 1500, max: 1680 },
+    { x: 2100, y: groundY - 48, w: 48, h: 48, dir: -1, min: 1980, max: 2120 },
+    { x: 2600, y: groundY - 48, w: 48, h: 48, dir: 1, min: 2600, max: 2780 },
+    { x: 3150, y: groundY - 48, w: 48, h: 48, dir: -1, min: 3000, max: 3150 },
+    { x: 3600, y: groundY - 48, w: 48, h: 48, dir: 1, min: 3600, max: 3800 },
+    { x: 4200, y: groundY - 48, w: 48, h: 48, dir: -1, min: 4100, max: 4200 },
+  ];
+
+  // NEW: monster image
+  let monsterImg = new Image();
+  monsterImg.src = "assets/image2.png";
+
+  // --- NEW: platforms (player can stand on them) ---
+  let platforms = [
+    { x: 600,  y: groundY - 120, w: 150, h: 20 },
+    { x: 1300, y: groundY - 150, w: 180, h: 20 },
+    { x: 1900, y: groundY - 110, w: 140, h: 20 },
+    { x: 2400, y: groundY - 140, w: 200, h: 20 },
+    { x: 3000, y: groundY - 160, w: 160, h: 20 },
+    { x: 3500, y: groundY - 110, w: 150, h: 20 },
+  ];
+
+  // --- NEW: coins (collect ≥6 to win)
+  let coins = [
+    { x: 500,  y: groundY - 180, taken:false },
+    { x: 1200, y: groundY - 200, taken:false },
+    { x: 1700, y: groundY - 180, taken:false },
+    { x: 2000, y: groundY - 220, taken:false },
+    { x: 2600, y: groundY - 200, taken:false },
+    { x: 3200, y: groundY - 180, taken:false },
+    { x: 3600, y: groundY - 200, taken:false },
+    { x: 4100, y: groundY - 180, taken:false },
+  ];
+
+  let coinsCollected = 0;
+
+  // coin image
+  let coinImg = new Image();
+  coinImg.src = "assets/image3.png";
 
   // active power (object or null) with expire timestamp
   let activePower = null; // { type: 'spring'|'speed'|'balloon'|'horn'|'dash', expire: timestamp }
@@ -93,22 +136,22 @@
     switch(type){
       case 'spring': // next jumps are higher: implement by increasing jumpImpulse while power active
         jumpImpulse = baseJumpImpulse * 1.8;
-        showDialog('你装备了小弹簧！下一次跳跃更高（5 秒）。');
+        showDialog('Spring equipped! Higher jump for 5s.');
         break;
       case 'fish': // speed boost
         moveSpeed = baseMoveSpeed * 1.5;
-        showDialog('你吃了小鱼干！速度提升（5 秒）。');
+        showDialog('Fish boost! Speed increased for 5s.');
         break;
       case 'balloon': // slow descents: reduce gravity effect for 5s
-        showDialog('你拿到彩色气球！下一次下降会更慢（5 秒）。');
+        showDialog('Balloon! Slower falling for 5s.');
         break;
       case 'horn': // clear obstacle (we'll show a simple message — later can add obstacle logic)
-        showDialog('你拿起小喇叭！可以清理前方小障碍（即时效果）。');
+        showDialog('Horn used! Cleared small obstacles.');
         // horn acts instantly — no persistent stat change
         activePower = null;
         break;
       case 'dash': // enable an extra dash ability for 5s
-        showDialog('你获得了呼噜能量！按 Shift 可额外冲刺（5 秒）。');
+        showDialog('Dash unlocked! Press Shift to dash for 5s.');
         break;
       default:
         console.warn('未知道具：', type);
@@ -122,7 +165,7 @@
       activePower = null;
       moveSpeed = baseMoveSpeed;
       jumpImpulse = baseJumpImpulse;
-      showDialog('道具效果结束啦。');
+      showDialog('Power effect ended.');
     }
   }
 
@@ -153,12 +196,12 @@
 
   // narrative trigger positions where player can pick a power
   const pickups = [
-    { x: 420, used:false, prompt: "你发现了一个小盒子，里面有道具，你想选哪个？", options: [
+    { x: 420, used:false, prompt: "You found a small box with items. Choose one:", options: [
       { text: '小弹簧', cb: ()=> applyPower('spring') },
       { text: '小鱼干', cb: ()=> applyPower('fish') },
       { text: '彩色气球', cb: ()=> applyPower('balloon') }
     ]},
-    { x: 1100, used:false, prompt: "前面有个友善的摊主，送你道具一件：", options: [
+    { x: 1100, used:false, prompt: "A friendly vendor gives you an item:", options: [
       { text: '小喇叭（清障）', cb: ()=> applyPower('horn') },
       { text: '呼噜能量（短冲刺）', cb: ()=> applyPower('dash') }
     ]}
@@ -190,8 +233,8 @@
     // dash cooldown
     if(player.dashCooldownLeft > 0) player.dashCooldownLeft = Math.max(0, player.dashCooldownLeft - dt);
 
-    // start dash if Shift pressed and cooldown == 0
-    if(keys.dash && player.dashCooldownLeft === 0){
+    // Dash only works if activePower?.type == 'dash'
+    if(activePower && activePower.type === 'dash' && keys.dash && player.dashCooldownLeft === 0){
       player.dashing = true;
       player.dashTimeLeft = dashDuration;
       player.dashCooldownLeft = dashCooldown + dashDuration;
@@ -248,6 +291,48 @@
       player.onGround = false;
     }
 
+    // --- NEW: platform collision (allow standing on top) ---
+    for (let p of platforms) {
+      if (
+        player.x + player.w > p.x &&
+        player.x < p.x + p.w &&
+        player.y + player.h > p.y &&
+        player.y + player.h < p.y + 30 &&
+        player.vy >= 0
+      ) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+        player.jumpsRemaining = 2;
+      }
+    }
+
+    // --- NEW: monsters patrol + collision ---
+    for (let m of monsters) {
+      m.x += m.dir * 60 * dt; // patrol speed
+
+      if (m.x < m.min) {
+        m.x = m.min;
+        m.dir = 1;
+      }
+      if (m.x > m.max) {
+        m.x = m.max;
+        m.dir = -1;
+      }
+
+      // collision with player → reset game
+      if (
+        player.x < m.x + m.w &&
+        player.x + player.w > m.x &&
+        player.y < m.y + m.h &&
+        player.y + player.h > m.y
+      ) {
+        resetPlayer();
+        showDialog("You touched a monster! Restarting...");
+        return;
+      }
+    }
+
     // world clamp
     if(player.x < 0) player.x = 0;
     if(player.x + player.w > world.width) player.x = world.width - player.w;
@@ -257,6 +342,19 @@
     cameraX = player.x - camCenter;
     if(cameraX < 0) cameraX = 0;
     if(cameraX > world.width - canvas.width) cameraX = world.width - canvas.width;
+
+    // --- NEW: collect coins ---
+    for (let c of coins) {
+      if (!c.taken &&
+          player.x + player.w > c.x &&
+          player.x < c.x + 32 &&
+          player.y + player.h > c.y &&
+          player.y < c.y + 32
+      ) {
+        c.taken = true;
+        coinsCollected++;
+      }
+    }
 
     // check pickups triggers
     for(const p of pickups){
@@ -268,8 +366,12 @@
     }
 
     // check victory: reach end before time up
-    if(player.x >= world.width - player.w - 10){
-      endGame(true);
+    if (player.x >= world.width - player.w - 10) {
+      if (coinsCollected >= 6) {
+        endGame(true);
+      } else {
+        showDialog("You need at least 6 coins to finish!");
+      }
       return;
     }
   }
@@ -302,6 +404,38 @@
       const ox = i*340 - (cameraX % 340);
       const oy = groundY - 28;
       ctx.fillRect(ox, oy, 80, 16);
+    }
+
+    // --- NEW: draw platforms ---
+    ctx.fillStyle = "#8b7d6b";
+    for (let p of platforms) {
+      ctx.fillRect(p.x - cameraX, p.y, p.w, p.h);
+    }
+
+    // --- NEW: draw monsters ---
+    for (let m of monsters) {
+      const mx = m.x - cameraX;
+      if (monsterImg.complete) {
+        ctx.drawImage(monsterImg, mx, m.y, m.w, m.h);
+      } else {
+        ctx.fillStyle = "red";
+        ctx.fillRect(mx, m.y, m.w, m.h);
+      }
+    }
+
+    // --- NEW: draw coins ---
+    for (let c of coins) {
+      if (!c.taken) {
+        const cx = c.x - cameraX;
+        if (coinImg.complete) {
+          ctx.drawImage(coinImg, cx, c.y, 32, 32);
+        } else {
+          ctx.fillStyle = "gold";
+          ctx.beginPath();
+          ctx.arc(cx + 16, c.y + 16, 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     // draw cat
@@ -355,9 +489,9 @@
     dialog.classList.add('hidden');
     resultEl.classList.remove('hidden');
     if(victory){
-      resultEl.innerHTML = `<div>🎉 你在规定时间内到达终点！</div><div style="margin-top:12px"><button onclick="location.reload()">再玩一次</button></div>`;
+      resultEl.innerHTML = `<div>🎉 You reached the end in time!</div><div style="margin-top:12px"><button onclick="location.reload()">Play again</button></div>`;
     } else {
-      resultEl.innerHTML = `<div>⏱️ 时间到啦！游戏结束。</div><div style="margin-top:12px"><button onclick="location.reload()">再试一次</button></div>`;
+      resultEl.innerHTML = `<div>⏱️ Time is up! Game over.</div><div style="margin-top:12px"><button onclick="location.reload()">Try again</button></div>`;
     }
   }
 
